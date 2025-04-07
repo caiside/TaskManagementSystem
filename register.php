@@ -5,15 +5,21 @@ session_start();
 $registration_error = '';
 $registration_success = '';
 
+// Include send_email.php
+require 'send_email.php'; // Include the send_email.php file where you defined the sendEmail function
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Retrieve and sanitize input
     $username = trim($_POST['username']);
+    $email = trim($_POST['email']); // Get the email from form
     $password = trim($_POST['password']);
     $role = 'User'; // Default role
 
     // Basic input validation
-    if (empty($username) || empty($password)) {
+    if (empty($username) || empty($email) || empty($password)) {
         $registration_error = "Please fill in all required fields.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $registration_error = "Please enter a valid email address.";
     } else {
         // Check if username already exists using prepared statements to prevent SQL injection
         $check_sql = "SELECT id FROM users WHERE username = ?";
@@ -30,13 +36,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
                 // Insert new user using prepared statements
-                $sql = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
+                $sql = "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)";
                 $stmt = $conn->prepare($sql);
                 if ($stmt) {
-                    $stmt->bind_param("sss", $username, $hashed_password, $role);
+                    $stmt->bind_param("ssss", $username, $email, $hashed_password, $role);
 
                     if ($stmt->execute()) {
-                        $registration_success = "Registration successful. <a href='login.php'>Click here to login</a>.";
+                        // Send confirmation email
+                        $subject = "Welcome to Our Website!";
+                        $body = "Hello $username,<br>Thank you for registering on our website. We are excited to have you onboard!<br><br>Best regards,<br>Your Task Management System";
+
+                        $email_result = sendEmail($email, $subject, $body); // Send email to the user's email
+
+                        if ($email_result === true) {
+                            $registration_success = "Registration successful. A confirmation email has been sent to your inbox. <a href='login.php'>Click here to login</a>.";
+                        } else {
+                            $registration_success = "Registration successful, but there was an error sending the confirmation email.";
+                        }
                     } else {
                         $registration_error = "Error: " . htmlspecialchars($stmt->error);
                     }
@@ -180,6 +196,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="input-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" placeholder="Enter your username" required>
+            </div>
+            <div class="input-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="Enter your email" required>
             </div>
             <div class="input-group">
                 <label for="password">Password</label>
